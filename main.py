@@ -22,7 +22,7 @@ def main():
     popular_banco()
 
     console.print(Panel(
-        "[bold yellow]🍕 Sistema de Pizzaria[/bold yellow]\n"
+        "[bold yellow] Sistema de Pizzaria[/bold yellow]\n"
         "[dim]Selecione o módulo para iniciar[/dim]",
         border_style="yellow",
         padding=(1, 4)

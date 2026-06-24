@@ -54,7 +54,18 @@ class Garcom(Base):
     def __repr__(self):
         return f"Garçom {self.usuario}"
 
+class Entrega(Base):
+    __tablename__ = "entrega"
 
+    id = Column (Integer, primary_key=True)
+    comanda_id = Column (Integer, ForeignKey("comandas.id"), nullable=False)
+    telefone = Column (String, nullable= False)
+    nome_cliente = Column (String, nullable=False)
+    endereco = Column (String, nullable=False)
+    status = Column(String, default="pendente")
+    criado = Column(DateTime, default=datetime.now)
+
+    comanda = relationship("Comanda")    
 
 
 class Cardapio(Base):
@@ -89,7 +100,7 @@ class Comanda(Base):
     __tablename__ = "comandas"
 
     id = Column(Integer, primary_key=True)
-    mesa_id = Column(Integer, ForeignKey("mesas.id"), nullable=False)
+    mesa_id = Column(Integer, ForeignKey("mesas.id"), nullable=True)
     abertura = Column(DateTime, default=datetime.now)
     fechamento = Column(DateTime, nullable=True)
     status = Column(String, default=StatusComanda.ABERTA)
@@ -104,7 +115,9 @@ class Comanda(Base):
         return sum(i.subtotal for i in self.itens)
 
     def __repr__(self):
-        return f"Comanda #{self.id} | Mesa {self.mesa.numero} | R$ {self.total:.2f}"
+        # Trata comanda de delivery de forma segura caso mesa seja None
+        local = f"Mesa {self.mesa.numero}" if self.mesa else "Delivery/Balcão"
+        return f"Comanda #{self.id} | {local} | R$ {self.total:.2f}"
 
 
 class ItemPedido(Base):

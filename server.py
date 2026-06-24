@@ -14,11 +14,11 @@ from typing import Optional
 import uvicorn 
 
 
-from models.database import criar_banco, popular_banco, Session, Mesa, Cardapio, Comanda, ItemPedido, Borda, StatusMesa, StatusComanda, StatusItem, Garcom
+from models.database import criar_banco, popular_banco, Session, Mesa, Cardapio, Comanda, ItemPedido, Borda, StatusMesa, StatusComanda, StatusItem, Garcom, Entrega
 from services.pizzaria_service import (
     listar_mesas, abrir_comanda, get_comanda_aberta, get_comanda,
     fechar_comanda, listar_cardapio, listar_bordas,
-    adicionar_item, remover_item, atualizar_status_item, listar_itens_pendentes, listar_garcons, cadastrar_garcom, remover_garcom,
+    adicionar_item, remover_item, atualizar_status_item, listar_itens_pendentes, listar_garcons, cadastrar_garcom, remover_garcom,abrir_comanda_entregas, criar_entrega, listar_entregas_ativas, atualizar_status_entrega
 )
 
 app = FastAPI(title="Pizzaria API")
@@ -108,7 +108,7 @@ def api_comandas_abertas():
 def serializar_comanda(c):
     return {
         "id": c.id,
-        "mesa_numero": c.mesa.numero,
+        "mesa_numero": c.mesa.numero if c.mesa_id and c.mesa else "Delivery",  # <-- Protegido contra Nulo
         "abertura": c.abertura.strftime("%H:%M"),
         "status": c.status,
         "total": c.total,
@@ -136,7 +136,8 @@ def listar_comandas_abertas_serializada():
     comandas = session.query(Comanda).filter_by(status=StatusComanda.ABERTA).all()
     resultado = []
     for c in comandas:
-        _ = c.mesa.numero
+        if c.mesa:  # <-- Só carrega o número se a mesa existir
+            _ = c.mesa.numero
         _ = c.garcom.usuario if c.garcom_id and c.garcom else None
         for i in c.itens:
             _ = i.produto.nome
@@ -218,12 +219,16 @@ def api_cozinha():
     resultado = []
     for i in itens:
         _ = i.produto.nome
-        _ = i.comanda.mesa.numero
+        if i.comanda.mesa:  # <-- Proteção para exibição na cozinha se for delivery
+            mesa_exibicao = i.comanda.mesa.numero
+        else:
+            mesa_exibicao = "Delivery"
+            
         _ = i.produto2.nome if i.produto2_id else None
         _ = i.borda.tipo if i.borda_id else None
         resultado.append({
             "id": i.id,
-            "mesa": i.comanda.mesa.numero,
+            "mesa": mesa_exibicao,
             "produto": i.produto.nome,
             "produto2": i.produto2.nome if i.produto2_id else None,
             "borda": i.borda.tipo if i.borda_id else None,
@@ -254,6 +259,56 @@ def api_remover_garcom(garcom_id: int):
     from services.pizzaria_service import remover_garcom
     if not remover_garcom(garcom_id):
         raise HTTPException(404, "Garçom não encontrado")
+    return {"ok": True}
+
+# ── Delivery / Entregas ────────────────────────────────────────────────────────
+
+class DeliveryBody(BaseModel):
+    telefone: str
+    nome_cliente: str
+    endereco: str
+
+@app.get("/api/entregas")
+def api_listar_entregas():
+    """Retorna todas as entregas ativas com os respectivos dados da comanda financeira."""
+    entregas = listar_entregas_ativas()
+    resultado = []
+    for e in entregas:
+        resultado.append({
+            "id": e.id,
+            "comanda_id": e.comanda_id,
+            "telefone": e.telefone,
+            "nome_cliente": e.nome_cliente,
+            "endereco": e.endereco,
+            "status": e.status,
+            "total": getattr(e, "total_calculado", 0.0)
+        })
+    return resultado
+
+@app.post("/api/entregas")
+def api_criar_entregas(body: DeliveryBody):
+    """Abre uma comanda de balcão/delivery e vincula os dados cadastrais do cliente."""
+    # 1. Cria a comanda sem amarra de mesa física
+    comanda = abrir_comanda_entregas()
+    if not comanda:
+        raise HTTPException(400, "Não foi possível gerar uma comanda para a entrega.")
+        
+    # 2. Registra os dados cadastrais da entrega associados a essa comanda
+    entrega = criar_entrega(comanda.id, body.telefone, body.nome_cliente, body.endereco)
+    if not entrega:
+        raise HTTPException(400, "Erro ao processar o vínculo cadastral da entrega.")
+        
+    return {"ok": True, "comanda_id": comanda.id, "entrega_id": entrega.id}
+
+@app.patch("/api/entregas/{entrega_id}/status")
+def api_atualizar_status_entrega(entrega_id: int, status: str):
+    """Muda o estado logístico da entrega (ex: de 'pendente' para 'em rota')."""
+    if status not in ["pendente", "em rota"]:
+        raise HTTPException(400, "Status logístico inválido. Use apenas 'pendente' ou 'em rota'.")
+        
+    if not atualizar_status_entrega(entrega_id, status):
+        raise HTTPException(404, "Registro de entrega não localizado.")
+        
     return {"ok": True}
 
 

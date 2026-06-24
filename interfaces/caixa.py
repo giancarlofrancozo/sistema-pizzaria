@@ -21,7 +21,7 @@ from services.pizzaria_service import (
     listar_mesas, listar_comandas_abertas, get_comanda_aberta,
     get_comanda, fechar_comanda, abrir_comanda, get_comanda_aberta,
     listar_cardapio, adicionar_item, remover_item, listar_bordas,
-    fechar_comanda,
+    fechar_comanda,abrir_comanda_entregas, criar_entrega, listar_entregas_ativas, atualizar_status_entrega,
     StatusMesa, StatusComanda, StatusItem
 )
 
@@ -87,8 +87,83 @@ def painel_geral():
     console.print(t)
     console.print()
 
+def painel_entregas():
+    while True:
+        limpar()
+        cabecalho ('Gerenciamento de Entregas')
 
+        entregas = listar_entregas_ativas ()
 
+        if not entregas:
+            console.print("[dim]Nenhuma entrega ativa (pendente/em rota) no momento.[/dim]\n")
+        else:
+            t = Table(title="[bold]Entregas Ativas[/bold]", box=box.ROUNDED, show_lines=True)
+            t.add_column("ID", style="cyan", width=5, justify="center")
+            t.add_column("Comanda", style="dim", width=9, justify="center")
+            t.add_column("Cliente", style="white", width=20)
+            t.add_column("Telefone", style="white", width=15)
+            t.add_column("Endereço", style="dim", width=30)
+            t.add_column("Status", width=12, justify="center")
+            t.add_column("Total", justify="right", style="bold green", width=10)
+
+            cores_status = {"pendente": "yellow", "em rota": "blue"}
+
+            for e in entregas:
+                cor = cores_status.get(e.status, "white")
+                t.add_row(
+                    str(e.id),
+                    f"#{e.comanda_id}",
+                    e.nome_cliente,
+                    e.telefone,
+                    e.endereco,
+                    f"[{cor}]{e.status.upper()}[/{cor}]",
+                    f"R$ {e.comanda.total:.2f}"
+                )
+            console.print(t)
+            console.print()
+
+        console.print("  [cyan]1[/cyan] — Nova Entrega (Lançar Pedido)")
+        console.print("  [cyan]2[/cyan] — Mudar Status (Pendente -> Em Rota)")
+        console.print("  [cyan]3[/cyan] — Gerenciar Itens/Fechar Comanda de Entrega")
+        console.print("  [cyan]0[/cyan] — Voltar ao Menu Principal")
+        
+        opcao = Prompt.ask("\nEscolha", choices=["0", "1", "2", "3"], default="0")
+
+        if opcao == "0":
+            break
+        elif opcao == "1":
+            lancar_nova_entrega()
+        elif opcao == "2":
+            alterar_status_entrega_caixa()
+        elif opcao == "3":
+            id_comanda = IntPrompt.ask("Digite o número da Comanda vinculada à entrega")
+            detalhe_comanda(id_comanda)
+def lancar_nova_entrega():
+    limpar()
+    cabecalho("Nova Entrega — Dados do Cliente")
+
+    telefone = Prompt.ask("Número do cliente (Telefone)")
+    nome = Prompt.ask("Nome do cliente")
+    endereco = Prompt.ask("Endereço completo")
+
+    confirma = Prompt.ask("\nConfirmar dados e abrir pedido? (s/n)", choices=["s", "n"], default="s")
+    if confirma == "s":
+        comanda = abrir_comanda_entrega()
+        criar_entrega(comanda.id, telefone, nome, endereco)
+        console.print(f"[bold green] Entrega iniciada com sucesso! Comanda [yellow]#{comanda.id}[/yellow] criada.[/bold green]")
+        Prompt.ask("\nPressione Enter para ir ao cardápio e adicionar os itens")
+        adicionar_item_caixa(comanda.id)
+
+def alterar_status_entrega_caixa():
+    id_entrega = IntPrompt.ask("Digite o ID da entrega que saiu para rota (0 = cancelar)")
+    if id_entrega == 0:
+        return
+    
+    if atualizar_status_entrega(id_entrega, "em rota"):
+        console.print("[bold green] Status atualizado para 'Em Rota'![/bold green]")
+    else:
+        print("[red]Entrega não encontrada.[/red]")
+    Prompt.ask("Pressione Enter")
 
 
 
@@ -207,8 +282,9 @@ def menu_principal():
     console.print("  [cyan]1[/cyan] — Atualizar painel")
     console.print("  [cyan]2[/cyan] — Ver/fechar comanda por mesa")
     console.print("  [cyan]3[/cyan] — Ver comanda por número")
+    console.print("  [cyan]4[/cyan] — Módulo Entregas / Delivery")
     console.print("  [cyan]0[/cyan] — Sair")
-    return Prompt.ask("\nEscolha", choices=["0", "1", "2", "3"])
+    return Prompt.ask("\nEscolha", choices=["0", "1", "2", "3", "4"])
 
 def adicionar_item_caixa(comanda_id: int):
     comanda = get_comanda(comanda_id)
@@ -252,11 +328,11 @@ def adicionar_item_caixa(comanda_id: int):
             return
         if borda_id == 0:
             borda_id = None
-        quantidade = IntPrompt.ask("Quantidade", default=1)
-        obs = Prompt.ask("Observação (Enter = nenhuma)", default="")
-        resultado = adicionar_item(comanda.id, prod_id, quantidade, obs, prod2_id,borda_id)
-        if isinstance(resultado, str):
-            console.print(f"[red]{resultado}[/red]")
+    quantidade = IntPrompt.ask("Quantidade", default=1)
+    obs = Prompt.ask("Observação (Enter = nenhuma)", default="")
+    resultado = adicionar_item(comanda.id, prod_id, quantidade, obs, prod2_id,borda_id)
+    if isinstance(resultado, str):
+        console.print(f"[red]{resultado}[/red]")
 
 def tela_cardapio():
     produtos = listar_cardapio()
@@ -300,7 +376,8 @@ def main():
             comanda_id = IntPrompt.ask("Número da comanda (0 = cancelar)")
             if comanda_id != 0:
                 detalhe_comanda(comanda_id)
-
+        elif opcao == "4":
+            painel_entregas()  # <-- Chama a tela de entregas
 
 if __name__ == "__main__":
     main()

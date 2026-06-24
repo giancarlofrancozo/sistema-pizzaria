@@ -3,9 +3,88 @@ from webbrowser import get
 
 from requests import session
 from sqlalchemy import false
-from models.database import Session, Mesa, Cardapio, Comanda, ItemPedido, Borda, StatusMesa, StatusComanda, StatusItem, Borda, Garcom
+from models.database import Session, Mesa, Cardapio, Comanda, ItemPedido, Borda, StatusMesa, StatusComanda, StatusItem, Borda, Garcom, Entrega
 
 DESCONTO_BROTO = 10.00
+# ── Entregas ────────────────────────────────────────────────────────────────────
+def abrir_comanda_entregas():  
+    session = Session()
+    try:
+        comanda = Comanda(mesa_id=None, status=StatusComanda.ABERTA)
+        session.add(comanda)
+        session.commit()
+        session.refresh(comanda)
+        _ = comanda.id
+        _ = comanda.status
+        return comanda
+    except Exception as e:
+        session.rollback()
+        print(f"Erro ao abrir comanda de entrega: {e}")
+        return None
+    finally:
+        session.close()
+
+def criar_entrega(comanda_id: int, telefone: str, nome_cliente: str, endereco: str):
+    session = Session()
+    try:
+        nova_entrega = Entrega(
+            comanda_id=comanda_id,
+            telefone=telefone,
+            nome_cliente=nome_cliente,
+            endereco=endereco,
+            status="pendente"
+        )
+        session.add(nova_entrega)
+        session.commit()
+        session.refresh(nova_entrega)
+        return nova_entrega
+    except Exception as e:
+        session.rollback()
+        print(f"Erro ao criar entrega: {e}")
+        return None
+    finally:
+        session.close()
+
+def listar_entregas_ativas():
+    session = Session()
+    try:
+        entregas = session.query(Entrega).filter(
+            Entrega.status.in_(['pendente', 'em rota'])
+        ).order_by(Entrega.criado.desc()).all()
+        
+        for e in entregas:
+            if e.comanda:
+                _ = e.comanda.total
+                for item in e.comanda.itens:
+                    _ = item.produto.nome
+                e.total_calculado = e.comanda.total
+            else:
+                e.total_calculado = 0.0
+        return entregas
+    except Exception as e:
+        print(f"Erro ao listar entregas: {e}")
+        return []
+    finally:
+        session.close()
+
+def atualizar_status_entrega(entrega_id: int, novo_status: str) -> bool:
+    session = Session()
+    try:
+        entrega = session.query(Entrega).filter_by(id=entrega_id).first()
+        if not entrega:
+            return False
+            
+        entrega.status = novo_status
+        session.commit()
+        return True
+    except Exception as e:
+        session.rollback()
+        print(f"Erro ao atualizar status: {e}")
+        return False
+    finally:
+        session.close()
+    
+
 # ── Garçom ────────────────────────────────────────────────────────────────────
 def listar_garcons():
     session = Session()
@@ -164,25 +243,33 @@ def listar_comandas_abertas():
     session.close()
     return comandas
 
-def fechar_comanda(comanda_id: int) -> Comanda | str:
-    """Fecha a comanda e libera a mesa."""
+def fechar_comanda(comanda_id: int):
+    """Fecha a comanda financeira e libera a mesa física (se houver uma)."""
     session = Session()
-    comanda = session.query(Comanda).filter_by(id=comanda_id).first()
+    try:
+        # 1. Busca a comanda correspondente
+        comanda = session.query(Comanda).filter_by(id=comanda_id, status=StatusComanda.ABERTA).first()
+        if not comanda:
+            session.close()
+            return "Comanda não encontrada ou já fechada."
 
-    if not comanda:
+        comanda.status = StatusComanda.FECHADA
+        comanda.fechamento = datetime.now()
+
+        if comanda.mesa_id and comanda.mesa:
+            comanda.mesa.status = StatusMesa.LIVRE
+            
+        entrega = session.query(Entrega).filter_by(comanda_id=comanda_id).first()
+        if entrega:
+            entrega.status = "entregue" 
+        session.commit()
         session.close()
-        return "Comanda não encontrada."
-
-    if comanda.status == StatusComanda.FECHADA:
+        return comanda
+    except Exception as e:
+        session.rollback()
         session.close()
-        return "Comanda já está fechada."
-
-    comanda.status = StatusComanda.FECHADA
-    comanda.fechamento = datetime.now()
-    comanda.mesa.status = StatusMesa.LIVRE
-    session.commit()
-    session.close()
-    return get_comanda(comanda_id)
+        print(f"Erro ao fechar comanda: {e}")
+        return f"Erro interno: {e}"
 
 
 # ── Itens de pedido ───────────────────────────────────────────────────────────
