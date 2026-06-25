@@ -8,31 +8,9 @@ Sistema completo de gerenciamento de comandas para restaurantes e pizzarias, des
 
 Assista ao sistema funcionando ao vivo:
 
-[![Demonstracao do sistema](https://img.youtube.com/vi/4vzhSETQE1I/0.jpg)](https://youtu.be/4vzhSETQE1I)
+[![Demonstracao do sistema](https://img.youtube.com/vi/4vzhSETQE1I/0.jpg)]((https://youtu.be/UFahEj4N4pg))
 
 ---
-
-## Screenshots
-
-**Tela de Login**
-
-![Login](screenshots/login.png)
-
-**Mapa de Mesas**
-
-![Mesas](screenshots/mesas.png)
-
-**Adicionar Item na Comanda**
-
-![Comanda](screenshots/comanda.png)
-
-**Tela da Cozinha**
-
-![Cozinha](screenshots/cozinha.png)
-
-**Painel do Caixa**
-
-![Caixa](screenshots/caixa.png)
 
 ---
 
