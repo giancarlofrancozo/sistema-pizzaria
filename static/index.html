@@ -37,6 +37,7 @@ nav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: 1; min-width: 80px; padding: 12px 8px 10px; text-align: center; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; white-space: nowrap; flex-shrink: 0; }
 .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .nav-tab span { display: block; font-size: 18px; margin-bottom: 2px; }
+.nav-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ── Page ── */
 .page { display: none; padding: 1rem; max-width: 600px; margin: 0 auto; }
@@ -53,6 +54,7 @@ nav::-webkit-scrollbar { display: none; }
 .mesa.livre { border-color: var(--green); }
 .mesa.ocupada { border-color: var(--accent); background: rgba(232,133,74,0.08); }
 .mesa.sel { box-shadow: 0 0 0 2px var(--accent); }
+.mesa:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .mesa-num { font-size: 22px; font-weight: 600; }
 .mesa-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
 .mesa.livre .mesa-label { color: var(--green); }
@@ -183,12 +185,12 @@ select:focus, input:focus { border-color: var(--accent); }
 </header>
 
 <nav>
-  <div class="nav-tab active" onclick="setTab('garcom')"><span></span>Garçom</div>
-  <div class="nav-tab" onclick="setTab('caixa')"><span></span>Caixa</div>
-  <div class="nav-tab" onclick="setTab('delivery')"><span></span>Delivery</div>
-  <div class="nav-tab" onclick="setTab('balcao')"><span></span>Balcão</div>
-  <div class="nav-tab" onclick="setTab('cardapio')"><span></span>Cardápio</div>
-  <div class="nav-tab" onclick="setTab('garcons')"><span></span>Garçons</div>
+  <div class="nav-tab active" tabindex="0" onclick="setTab('garcom')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('garcom'); event.preventDefault(); }"><span></span>Garçom</div>
+  <div class="nav-tab" tabindex="0" onclick="setTab('caixa')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('caixa'); event.preventDefault(); }"><span></span>Caixa</div>
+  <div class="nav-tab" tabindex="0" onclick="setTab('delivery')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('delivery'); event.preventDefault(); }"><span></span>Delivery</div>
+  <div class="nav-tab" tabindex="0" onclick="setTab('balcao')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('balcao'); event.preventDefault(); }"><span></span>Balcão</div>
+  <div class="nav-tab" tabindex="0" onclick="setTab('cardapio')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('cardapio'); event.preventDefault(); }"><span></span>Cardápio</div>
+  <div class="nav-tab" tabindex="0" onclick="setTab('garcons')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { setTab('garcons'); event.preventDefault(); }"><span></span>Garçons</div>
 </nav>
 
 <div id="page-delivery" class="page">
@@ -509,7 +511,10 @@ async function loadMesas() {
   const mesas = await api('/api/mesas');
   const grid = document.getElementById('mesas-grid');
   grid.innerHTML = mesas.map(m => `
-    <div class="mesa ${m.status} ${mesaSel===m.numero?'sel':''}" onclick="selMesa(${m.numero})">
+    <div class="mesa ${m.status} ${mesaSel===m.numero?'sel':''}" 
+         tabindex="0" 
+         onclick="selMesa(${m.numero})" 
+         onkeydown="if(event.key === 'Enter' || event.key === ' ') { selMesa(${m.numero}); event.preventDefault(); }">
       <div class="mesa-num">${m.numero}</div>
       <div class="mesa-label">${m.status}</div>
     </div>`).join('');
@@ -797,7 +802,10 @@ async function loadCaixa() {
   grid.innerHTML = mesas
   .filter(m => m.status === 'livre')
   .map(m => `
-    <div class="mesa livre" onclick="abrirMesaCaixa(${m.numero})">
+    <div class="mesa livre" 
+         tabindex="0" 
+         onclick="abrirMesaCaixa(${m.numero})" 
+         onkeydown="if(event.key === 'Enter' || event.key === ' ') { abrirMesaCaixa(${m.numero}); event.preventDefault(); }">
       <div class="mesa-num">${m.numero}</div>
       <div class="mesa-label">abrir</div>
     </div>`).join('');
@@ -823,7 +831,10 @@ async function loadCaixa() {
       if (i.borda) n += ' ['+i.borda+']';
       return i.quantidade+'x '+n;
     }).join(' • ') || 'Sem itens';
-    return `<div class="comanda-card" onclick="verComandaCaixa(${c.id})">
+    return `<div class="comanda-card" 
+                 tabindex="0" 
+                 onclick="verComandaCaixa(${c.id})" 
+                 onkeydown="if(event.key === 'Enter' || event.key === ' ') { verComandaCaixa(${c.id}); event.preventDefault(); }">
       <div class="comanda-meta">
         <span class="comanda-id">Mesa ${c.mesa_numero} — #${c.id}</span>
         <span class="comanda-total">R$ ${c.total.toFixed(2)}</span>
@@ -874,7 +885,7 @@ function calcularDivisaoConta() {
   }
   
   const total = window._totalFecharAtual || 0;
-  const valorPorPessoa = total / pessoas;
+  const valor por pessoa = total / pessoas;
   
   document.getElementById('calc-resultado-divisao').textContent = `R$ ${valorPorPessoa.toFixed(2)}`;
 }
