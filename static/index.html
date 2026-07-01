@@ -115,6 +115,18 @@ select:focus, input:focus { border-color: var(--accent); }
 
 /* ── Cardápio ── */
 .cat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; padding: .5rem 0 .25rem; }
+
+/* ── Abas de Categorias ── */
+.cat-tab { flex-shrink:0; padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.cat-tab:hover { border-color: var(--accent); color: var(--text); }
+.cat-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cat-tab:active { transform: scale(0.96); }
+
+/* ── Cards de Produto no Modal ── */
+.prod-card { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:6px; cursor:pointer; transition:all .15s; background:var(--bg3); }
+.prod-card:hover { border-color:var(--accent); }
+.prod-card.selected { border-color:var(--accent); background:rgba(232,133,74,0.1); }
+.prod-card:active { transform:scale(0.98); }
 .prod-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .prod-row:last-child { border-bottom: none; }
 .prod-nome { font-size: 14px; font-weight: 500; }
@@ -127,6 +139,9 @@ select:focus, input:focus { border-color: var(--accent); }
 .modal { background: var(--bg2); border-radius: var(--radius) var(--radius) 0 0; border: 1px solid var(--border); width: 100%; max-width: 600px; margin: 0 auto; padding: 1.25rem; max-height: 85vh; overflow-y: auto; }
 .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--accent); margin-bottom: 1rem; }
 .drag-bar { width: 40px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto 1rem; }
+
+/* ── Badge pago ── */
+.badge.pago { background: rgba(92,184,122,0.15); color: var(--green); }
 
 /* ── Vazio ── */
 .empty { text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 14px; }
@@ -218,13 +233,105 @@ select:focus, input:focus { border-color: var(--accent); }
 
 <div id="page-caixa" class="page">
   <div class="stats" id="stats"></div>
-  <div class="card-title" style="padding:0 0 .5rem">Comandas abertas</div>
-  <div class="mesas-grid" id="caixa-mesas-grid"></div>
-  <div id="caixa-list"><div class="loading">Carregando...</div></div>
+  
+  <!-- ── Abas: Abertas / Fechadas ── -->
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="caixa-tab active" id="caixa-tab-abertas" onclick="setCaixaTab('abertas')" style="flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all.15s"> Comandas Abertas</button>
+    <button class="caixa-tab" id="caixa-tab-fechadas" onclick="setCaixaTab('fechadas')" style="flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all.15s"> Histórico Fechadas</button>
+  </div>
+
+  <!-- ── Painel: Abertas ── -->
+  <div id="caixa-painel-abertas">
+    <div class="mesas-grid" id="caixa-mesas-grid"></div>
+    <div id="caixa-list"><div class="loading">Carregando...</div></div>
+  </div>
+
+  <!-- ── Painel: Fechadas (Histórico) ── -->
+  <div id="caixa-painel-fechadas" style="display:none">
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:end">
+        <div class="form-group" style="margin-bottom:0;flex:1">
+          <label style="font-size:11px">De</label>
+          <input type="date" id="historico-data-inicio" onchange="carregarHistorico()" style="padding:8px 10px;font-size:13px">
+        </div>
+        <div class="form-group" style="margin-bottom:0;flex:1">
+          <label style="font-size:11px">Até</label>
+          <input type="date" id="historico-data-fim" onchange="carregarHistorico()" style="padding:8px 10px;font-size:13px">
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('historico-data-inicio').value='';document.getElementById('historico-data-fim').value='';carregarHistorico()" style="margin-bottom:0">Limpar</button>
+      </div>
+    </div>
+    <div id="historico-list"><div class="loading">Carregando histórico...</div></div>
+  </div>
 </div>
 
 <div id="page-cardapio" class="page">
-  <div id="cardapio-list"><div class="loading">Carregando...</div></div>
+  <div style="position:sticky;top:56px;background:var(--bg);z-index:50;padding:8px 0 4px">
+    <div style="position:relative">
+      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted);pointer-events:none">🔍</span>
+      <input type="text" id="cardapio-search" placeholder="Buscar no cardápio..." oninput="filtrarCardapio()" style="width:100%;padding:10px 12px 10px 36px;font-size:14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none">
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px;scrollbar-width:none" id="cardapio-tabs"></div>
+  </div>
+  
+  <!-- ── Cadastrar novo item ── -->
+  <div class="card" style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="card-title" style="margin-bottom:0">Novo item</div>
+      <button class="btn btn-sm" onclick="toggleFormCardapio()" id="btn-toggle-cardapio-form">+ Adicionar</button>
+    </div>
+    <div id="form-novo-item-cardapio" style="display:none;margin-top:12px">
+      <div class="form-group">
+        <label for="ci-nome">Nome</label>
+        <input type="text" id="ci-nome" placeholder="Ex: Pizza de Bacon">
+      </div>
+      <div class="form-group">
+        <label for="ci-categoria">Categoria</label>
+        <select id="ci-categoria" onchange="onCategoriaChange('ci-categoria','ci-nova-categoria')"></select>
+        <input type="text" id="ci-nova-categoria" placeholder="Digite o nome da nova categoria..." style="display:none;margin-top:8px">
+      </div>
+      <div style="display:flex;gap:12px">
+        <div class="form-group" style="flex:1">
+          <label for="ci-preco">Preço (R$)</label>
+          <input type="number" id="ci-preco" step="0.01" min="0" placeholder="Ex: 39.90">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label for="ci-descricao">Descrição</label>
+          <input type="text" id="ci-descricao" placeholder="Ex: Molho, mussarela e bacon">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-full" onclick="adicionarItemCardapio()">Salvar item</button>
+        <button class="btn btn-full" onclick="toggleFormCardapio()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Gerenciar Bordas ── -->
+  <div class="card" style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="card-title" style="margin-bottom:0">Bordas</div>
+      <button class="btn btn-sm" onclick="toggleFormBorda()" id="btn-toggle-borda-form">+ Nova borda</button>
+    </div>
+    <div id="form-nova-borda" style="display:none;margin-top:12px">
+      <div style="display:flex;gap:12px">
+        <div class="form-group" style="flex:2">
+          <label for="cb-tipo">Tipo</label>
+          <input type="text" id="cb-tipo" placeholder="Ex: cheddar, catupiry...">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label for="cb-preco">Preço (R$)</label>
+          <input type="number" id="cb-preco" step="0.01" min="0" placeholder="Ex: 12.00">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-full" onclick="adicionarBorda()">Salvar borda</button>
+        <button class="btn btn-full" onclick="toggleFormBorda()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="cardapio-list" style="padding-top:4px"><div class="loading">Carregando...</div></div>
 </div> 
 
 <div id="page-garcons" class="page">
@@ -380,9 +487,16 @@ select:focus, input:focus { border-color: var(--accent); }
   <div class="modal" id="modal-content">
     <div class="drag-bar"></div>
     <div class="modal-title">Adicionar item</div>
+    <!-- ── Abas + Cards de Produto ── -->
     <div class="form-group">
-      <label for="m-produto">Produto</label>
-      <select id="m-produto" onchange="onProdChange()"></select>
+      <label>Produto</label>
+      <div style="position:relative;margin-bottom:8px">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>
+        <input type="text" id="modal-produto-search" placeholder="Buscar no cardápio..." oninput="renderizarProdutosModal()" style="width:100%;padding:8px 10px 8px 32px;font-size:13px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;box-sizing:border-box">
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:4px;scrollbar-width:none" id="modal-cat-tabs"></div>
+      <div id="modal-produtos-lista" style="max-height:200px;overflow-y:auto;margin-bottom:4px"></div>
+      <select id="m-produto" style="display:none"></select>
     </div>
     <div class="form-group" id="m-row-tamanho" style="display:none">
       <label for="m-tamanho">Tamanho</label>
@@ -442,6 +556,37 @@ select:focus, input:focus { border-color: var(--accent); }
   🛒 <span id="float-badge">0</span> Lançar Pedido
 </div>
 
+<!-- ── Modal Editar Item do Cardápio ── -->
+<div class="overlay" id="editar-cardapio-overlay" onclick="if(event.target===this)fecharModalEditarCardapio()">
+  <div class="modal">
+    <div class="drag-bar"></div>
+    <div class="modal-title">✏️ Editar item</div>
+    <div class="form-group">
+      <label for="eci-nome">Nome</label>
+      <input type="text" id="eci-nome" placeholder="Nome do item">
+    </div>
+    <div class="form-group">
+      <label for="eci-categoria">Categoria</label>
+      <select id="eci-categoria" onchange="onCategoriaChange('eci-categoria','eci-nova-categoria')"></select>
+      <input type="text" id="eci-nova-categoria" placeholder="Digite o nome da nova categoria..." style="display:none;margin-top:8px">
+    </div>
+    <div style="display:flex;gap:12px">
+      <div class="form-group" style="flex:1">
+        <label for="eci-preco">Preço (R$)</label>
+        <input type="number" id="eci-preco" step="0.01" min="0" placeholder="Ex: 39.90">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label for="eci-descricao">Descrição</label>
+        <input type="text" id="eci-descricao" placeholder="Descrição do item">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary btn-full" onclick="salvarEdicaoCardapio()">Salvar alterações</button>
+      <button class="btn btn-full" onclick="fecharModalEditarCardapio()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="fechar-overlay" onclick="if(event.target===this)closeFechar()">
   <div class="modal" id="fechar-content">
     <div class="drag-bar"></div>
@@ -473,6 +618,8 @@ let mesaSel = null;
 let comandaAtual = null;
 let comandaFecharId = null;
 let tabAtual = 'garcom';
+let categoriaCardapioSel = 'todas';
+let modalCatSel = 'todas';
 
 // ARRAY PARA GUARDAR OS ITENS ANTES DO ENVIO
 let carrinhoItens = []; 
@@ -691,7 +838,7 @@ async function loadMesaPanel(numero) {
         <div class="item-info">
           <div class="item-nome">${i.produto2_nome ? i.produto_nome+' / '+i.produto2_nome : i.produto_nome}</div>
           <div class="item-detalhe">
-            ${i.borda ? '🔴 Borda: '+i.borda+'  ' : ''}
+            ${i.borda ? ' Borda: '+i.borda+'  ' : ''}
             ${i.observacao ? '💬 '+i.observacao : ''}
           </div>
         </div>
@@ -730,10 +877,94 @@ async function removerItem(id) {
 }
 
 // ── Modal adicionar item ──────────────────────────────────────────────────────
+function renderizarProdutosModal() {
+  const catSel = modalCatSel;
+  const searchQuery = (document.getElementById('modal-produto-search').value || '').toLowerCase().trim();
+  const catsDisponiveis = ['todas', ...new Set(cardapio.map(p => p.categoria))];
+
+  // Filtrar produtos por categoria e busca
+  let produtosFiltrados = cardapio.filter(p => {
+    const matchCategoria = catSel === 'todas' || p.categoria === catSel;
+    const matchBusca = !searchQuery || 
+      p.nome.toLowerCase().includes(searchQuery) || 
+      (p.descricao && p.descricao.toLowerCase().includes(searchQuery)) ||
+      p.categoria.toLowerCase().includes(searchQuery);
+    return matchCategoria && matchBusca;
+  });
+
+  // Calcular contagem por aba (considerando busca)
+  const totalTodos = produtosFiltrados.length;
+  const contagem = {};
+  catsDisponiveis.forEach(cat => {
+    if (cat === 'todas') {
+      contagem[cat] = totalTodos;
+    } else {
+      contagem[cat] = produtosFiltrados.filter(p => p.categoria === cat).length;
+    }
+  });
+
+  // Renderizar abas
+  const tabsContainer = document.getElementById('modal-cat-tabs');
+  tabsContainer.innerHTML = catsDisponiveis.map(cat => {
+    const nomes = { 'todas': 'Todas', 'pizza': '🍕 Pizzas', 'bebida': '🥤 Bebidas', 'sobremesa': '🍰 Sobremesas' };
+    const label = nomes[cat] || cat;
+    const count = contagem[cat];
+    const disabled = count === 0;
+    return `<div class="cat-tab ${catSel === cat ? 'active' : ''}" onclick="selecionarCatModal('${cat}')" style="${disabled ? 'opacity:.35;pointer-events:none' : ''}">${label} <span style="opacity:.6;font-size:11px">${count}</span></div>`;
+  }).join('');
+
+  // Se a aba atual ficou vazia pós-busca, volta pra Todas
+  if (produtosFiltrados.length === 0 && catSel !== 'todas') {
+    modalCatSel = 'todas';
+    window._modalProdutoSel = null;
+    renderizarProdutosModal();
+    return;
+  }
+
+  const lista = document.getElementById('modal-produtos-lista');
+
+  if (produtosFiltrados.length === 0) {
+    lista.innerHTML = '<div class="empty" style="padding:1.5rem .5rem"><div class="empty-icon" style="font-size:24px">🔍</div>Nenhum produto encontrado</div>';
+    return;
+  }
+
+  lista.innerHTML = produtosFiltrados.map(p => {
+    const selected = window._modalProdutoSel == p.id;
+    return `<div class="prod-card ${selected ? 'selected' : ''}" onclick="selecionarProdutoModal(${p.id})">
+      <div>
+        <div class="prod-nome">${p.nome}</div>
+        ${p.descricao ? `<div class="prod-desc">${p.descricao}</div>` : ''}
+      </div>
+      <div class="prod-preco" style="font-size:13px">R$ ${p.preco.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+
+  // Auto-selecionar o primeiro se nenhum estiver selecionado
+  if (!window._modalProdutoSel && produtosFiltrados.length > 0) {
+    selecionarProdutoModal(produtosFiltrados[0].id);
+  }
+}
+
+function selecionarCatModal(cat) {
+  modalCatSel = cat;
+  window._modalProdutoSel = null;
+  renderizarProdutosModal();
+}
+
+function selecionarProdutoModal(id) {
+  window._modalProdutoSel = id;
+  document.getElementById('m-produto').value = id;
+  onProdChange();
+  renderizarProdutosModal();
+}
+
 async function openModal(comandaId) {
   if (!cardapio.length) cardapio = await api('/api/cardapio');
   if (!bordas.length) bordas = await api('/api/bordas');
   window._modalComandaId = comandaId;
+  modalCatSel = 'todas';
+  window._modalProdutoSel = null;
+  document.getElementById('modal-produto-search').value = '';
 
   const pizzas = cardapio.filter(p => p.categoria === 'pizza');
   const pizzaOpts = pizzas.map(p => `<option value="${p.id}">${p.nome} — R$ ${p.preco.toFixed(2)}</option>`).join('');
@@ -757,10 +988,12 @@ async function openModal(comandaId) {
   document.getElementById('m-borda').innerHTML =
     bordas.map(b => `<option value="${b.id}" data-preco="${b.preco}">${b.tipo}${b.preco>0?' +R$ '+b.preco.toFixed(2):' (grátis)'}</option>`).join('');
 
+  // Renderizar abas e cards de produto
+  renderizarProdutosModal();
+
   document.getElementById('m-qtd').value = 1;
   document.getElementById('m-obs').value = '';
   document.getElementById('m-meio').value = '0';
-  onProdChange();
   
   carrinhoItens = []; // Zera o carrinho novo a cada abertura de comanda
   atualizaBotaoFlutuante();
@@ -932,14 +1165,124 @@ function closeFechar() {
 }
 
 async function confirmarFechar() {
+  // Verificar se há itens selecionados e valor recebido (elemento pode não existir se todos já pagos)
+  const elValorRecebido = document.getElementById('caixa-valor-recebido');
+  const totalSelecionado = calcularTotalSelecionadoCaixa();
+  const valorRecebido = elValorRecebido ? parseFloat(elValorRecebido.value) || 0 : 0;
+  if (totalSelecionado > 0 && valorRecebido < totalSelecionado) {
+    if (!confirm(`Valor recebido (R$ ${valorRecebido.toFixed(2)}) é menor que o total selecionado (R$ ${totalSelecionado.toFixed(2)}). Deseja fechar mesmo assim?`)) {
+      return;
+    }
+  }
+
   await api(`/api/comanda/${comandaFecharId}/fechar`, 'POST');
   closeFechar();
   mesaSel = null;
   document.getElementById('mesa-panel').innerHTML = '';
-  await loadMesas();
+  if (tabAtual === 'caixa') await loadCaixa();
+  else await loadMesas();
 }
 
 // ── Caixa ─────────────────────────────────────────────────────────────────────
+function setCaixaTab(tab) {
+  const tabAbertas = document.getElementById('caixa-tab-abertas');
+  const tabFechadas = document.getElementById('caixa-tab-fechadas');
+  const painelAbertas = document.getElementById('caixa-painel-abertas');
+  const painelFechadas = document.getElementById('caixa-painel-fechadas');
+
+  if (tab === 'abertas') {
+    tabAbertas.style.background = 'var(--bg3)';
+    tabAbertas.style.color = 'var(--text)';
+    tabAbertas.style.fontWeight = '600';
+    tabFechadas.style.background = 'var(--bg3)';
+    tabFechadas.style.color = 'var(--muted)';
+    tabFechadas.style.fontWeight = '500';
+    painelAbertas.style.display = 'block';
+    painelFechadas.style.display = 'none';
+    loadCaixa();
+  } else {
+    tabFechadas.style.background = 'var(--bg3)';
+    tabFechadas.style.color = 'var(--text)';
+    tabFechadas.style.fontWeight = '600';
+    tabAbertas.style.background = 'var(--bg3)';
+    tabAbertas.style.color = 'var(--muted)';
+    tabAbertas.style.fontWeight = '500';
+    painelAbertas.style.display = 'none';
+    painelFechadas.style.display = 'block';
+    carregarHistorico();
+  }
+}
+
+async function reabrirComanda(id) {
+  if (!confirm(`Reabrir a comanda #${id}? Os itens anteriores voltarão e a mesa será reocupada.`)) return;
+  try {
+    await api(`/api/comanda/${id}/reabrir`, 'POST');
+    alert(`Comanda #${id} reaberta!`);
+    carregarHistorico();
+  } catch (e) {
+    alert('Erro ao reabrir comanda: ' + e.message);
+  }
+}
+
+async function carregarHistorico() {
+  const container = document.getElementById('historico-list');
+  container.innerHTML = '<div class="loading">Carregando histórico...</div>';
+  
+  const dataInicio = document.getElementById('historico-data-inicio').value;
+  const dataFim = document.getElementById('historico-data-fim').value;
+  
+  let url = '/api/comandas/fechadas';
+  const params = [];
+  if (dataInicio) params.push(`data_inicio=${dataInicio}`);
+  if (dataFim) params.push(`data_fim=${dataFim}`);
+  if (params.length) url += '?' + params.join('&');
+  
+  try {
+    const comandas = await api(url);
+    const container = document.getElementById('historico-list');
+    
+    if (!comandas.length) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>Nenhuma comanda fechada' + 
+        (dataInicio || dataFim ? ' neste período' : '') + '</div>';
+      return;
+    }
+    
+    // Totais do período
+    const totalPeriodo = comandas.reduce((s, c) => s + c.total, 0);
+    const totalItens = comandas.reduce((s, c) => s + c.qtd_itens, 0);
+    
+    container.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div class="stat" style="flex:1"><div class="stat-v" style="font-size:16px;color:var(--accent)">R$ ${totalPeriodo.toFixed(2)}</div><div class="stat-l">faturamento</div></div>
+        <div class="stat" style="flex:1"><div class="stat-v" style="font-size:16px">${comandas.length}</div><div class="stat-l">comandas</div></div>
+        <div class="stat" style="flex:1"><div class="stat-v" style="font-size:16px">${totalItens}</div><div class="stat-l">itens</div></div>
+      </div>
+      ${comandas.map(c => {
+        const resumo = c.itens.map(i => {
+          let n = i.produto2_nome ? i.produto_nome+'/'+i.produto2_nome : i.produto_nome;
+          if (i.borda) n += ' ['+i.borda+']';
+          return i.quantidade+'x '+n;
+        }).join(' • ');
+        return `<div class="comanda-card" style="cursor:default">
+          <div class="comanda-meta">
+            <span class="comanda-id">${c.mesa_numero} — #${c.id}</span>
+            <span class="comanda-total" style="font-size:14px">R$ ${c.total.toFixed(2)}</span>
+          </div>
+          <div class="comanda-itens" style="display:flex;justify-content:space-between">
+            <span>${c.fechamento} • 👤 ${c.garcom}</span>
+            <span style="color:var(--muted)">${c.qtd_itens} item${c.qtd_itens>1?'s':''}</span>
+          </div>
+          ${resumo ? `<div class="comanda-itens" style="margin-top:4px">${resumo}</div>` : ''}
+          <button class="btn btn-sm btn-green" style="margin-top:8px" onclick="reabrirComanda(${c.id})">↩️ Reabrir comanda</button>
+        </div>`;
+      }).join('')}
+    `;
+  } catch (e) {
+    document.getElementById('historico-list').innerHTML = 
+      '<div class="empty" style="color:var(--red)">Erro ao carregar histórico: ' + e.message + '</div>';
+  }
+}
+
 async function loadCaixa() {
   const mesas = await api('/api/mesas');
   const grid = document.getElementById('caixa-mesas-grid');
@@ -994,23 +1337,147 @@ async function verComandaCaixa(id) {
   const c = r.find(x => x.id === id);
   if (!c) return;
   window._totalFecharAtual = c.total;
+  window._itensCaixa = c.itens;
+  window._comandaCaixaId = id;
   document.getElementById('calc-pessoas').value = 1;
-  const itens = c.itens.map(i => {
-    let n = i.produto2_nome ? i.produto_nome+' / '+i.produto2_nome : i.produto_nome;
-    if (i.borda) n += ' [borda: '+i.borda+']';
-    return `<div class="item-row">
-      <div class="item-info"><div class="item-nome">${n}</div>${i.observacao?'<div class="item-detalhe">💬 '+i.observacao+'</div>':''}</div>
-      <div class="item-right"><span class="badge ${i.status}">${i.status}</span><div class="item-preco">R$ ${i.subtotal.toFixed(2)}</div></div>
-    </div>`;
-  }).join('') || '<div class="empty" style="padding:.5rem 0">Sem itens</div>';
+
+  const itensPagos = c.itens.filter(i => i.pago);
+  const totalPago = itensPagos.reduce((s, i) => s + i.subtotal, 0);
+  const totalRestante = c.itens.filter(i => !i.pago).reduce((s, i) => s + i.subtotal, 0);
+
+  // Rastrear índices originais dos itens não-pagos para alinhar checkboxes com window._itensCaixa
+  const unpaidIndices = [];
+  c.itens.forEach((i, idx) => { if (!i.pago) unpaidIndices.push(idx); });
+
+  // Itens já pagos
+  let htmlPagos = '';
+  if (itensPagos.length) {
+    htmlPagos = `
+      <div style="font-size:11px;color:var(--green);margin:8px 0 4px;font-weight:600">✅ Itens pagos</div>
+      ${itensPagos.map(i => {
+        let n = i.produto2_nome ? i.produto_nome+' / '+i.produto2_nome : i.produto_nome;
+        if (i.borda) n += ' [borda: '+i.borda+']';
+        return `<div class="item-row" style="align-items:center;opacity:.6">
+          <span style="color:var(--green);font-size:14px;flex-shrink:0">✅</span>
+          <div class="item-info"><div class="item-nome" style="text-decoration:line-through">${n}</div>${i.observacao?'<div class="item-detalhe">💬 '+i.observacao+'</div>':''}</div>
+          <div class="item-right"><span class="badge pago">pago</span><div class="item-preco">R$ ${i.subtotal.toFixed(2)}</div></div>
+        </div>`;
+      }).join('')}`;
+  }
+
+  // Itens a pagar (usando índices originais para checkbox IDs)
+  const htmlRestantes = unpaidIndices.length
+    ? unpaidIndices.map(origIdx => {
+        const i = c.itens[origIdx];
+        let n = i.produto2_nome ? i.produto_nome+' / '+i.produto2_nome : i.produto_nome;
+        if (i.borda) n += ' [borda: '+i.borda+']';
+        return `<div class="item-row" style="align-items:center">
+          <input type="checkbox" id="ck-item-${origIdx}" checked onchange="calcularPagamentoCaixa()" style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;margin-top:2px">
+          <div class="item-info"><div class="item-nome">${n}</div>${i.observacao?'<div class="item-detalhe">💬 '+i.observacao+'</div>':''}</div>
+          <div class="item-right"><span class="badge ${i.status}">${i.status}</span><div class="item-preco">R$ ${i.subtotal.toFixed(2)}</div></div>
+        </div>`;
+      }).join('')
+    : '';
+
+  const totalGeral = c.total;
+
   document.getElementById('fechar-resumo').innerHTML = `
     <div style="font-size:13px;color:var(--muted);margin-bottom:.75rem">Mesa ${c.mesa_numero} • desde ${c.abertura}</div>
-    ${itens}
-    <div class="total-bar"><span class="total-label">Total</span><span class="total-value">R$ ${c.total.toFixed(2)}</span></div>
-    <button class="btn btn-primary btn-full" style="margin-top:.75rem" onclick="closeFechar();openModal(${c.id})">+ Adicionar item</button>`;
+    
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div class="stat" style="flex:1;padding:8px"><div class="stat-v" style="font-size:15px;color:var(--green)">R$ ${totalPago.toFixed(2)}</div><div class="stat-l">pago</div></div>
+      <div class="stat" style="flex:1;padding:8px"><div class="stat-v" style="font-size:15px;color:var(--accent)">R$ ${totalRestante.toFixed(2)}</div><div class="stat-l">restante</div></div>
+      <div class="stat" style="flex:1;padding:8px"><div class="stat-v" style="font-size:15px">R$ ${totalGeral.toFixed(2)}</div><div class="stat-l">total</div></div>
+    </div>
+
+    ${htmlPagos}
+    
+    ${unpaidIndices.length ? `
+    <div style="font-size:11px;color:var(--muted);margin:8px 0 4px;font-weight:500">Itens a pagar:</div>
+    ${htmlRestantes}
+    <div class="total-bar">
+      <span class="total-label">Total selecionado</span>
+      <span class="total-value" id="caixa-total-selecionado" style="font-size:18px">R$ ${totalRestante.toFixed(2)}</span>
+    </div>
+
+    <div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Recebimento</div>
+      <div class="form-group" style="margin-bottom:0">
+        <label for="caixa-valor-recebido" style="font-size:11px">Valor recebido (R$)</label>
+        <input type="number" id="caixa-valor-recebido" step="0.01" min="0" placeholder="0.00" oninput="calcularPagamentoCaixa()" style="padding:8px 10px;font-size:14px">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span style="font-size:12px;color:var(--muted)">Troco</span>
+        <span id="caixa-troco" style="font-size:18px;font-weight:600;color:var(--green)">R$ 0.00</span>
+      </div>
+    </div>
+
+    <button class="btn btn-green btn-full" onclick="confirmarPagamentoItens(${c.id})">✅ Pagar selecionados</button>
+    ` : ''}
+
+    <button class="btn btn-primary btn-full" style="margin-top:.75rem" onclick="closeFechar();openModal(${c.id})">+ Adicionar item</button>
+    ${!unpaidIndices.length ? `<button class="btn btn-danger btn-full" onclick="confirmarFechar()">Fechar conta — R$ ${totalGeral.toFixed(2)}</button>` : ''}
+  `;
+  
   comandaFecharId = id;
   document.getElementById('fechar-overlay').classList.add('open');
+  if (unpaidIndices.length > 0) calcularPagamentoCaixa();
   calcularDivisaoConta();
+}
+
+async function confirmarPagamentoItens(comandaId) {
+  const itens = window._itensCaixa || [];
+  const selectedIds = [];
+  
+  itens.forEach((i, idx) => {
+    if (i.pago) return; // pula itens já pagos
+    const ck = document.getElementById('ck-item-' + idx);
+    if (ck && ck.checked) {
+      selectedIds.push(i.id);
+    }
+  });
+  
+  if (!selectedIds.length) {
+    alert('Selecione ao menos um item para pagar');
+    return;
+  }
+  
+  if (!confirm(`Confirmar pagamento de ${selectedIds.length} item${selectedIds.length>1?'s':''}?`)) return;
+  
+  try {
+    await api(`/api/comanda/${comandaId}/itens/pagar`, 'POST', { item_ids: selectedIds });
+    // Recarrega a comanda para mostrar status atualizado
+    verComandaCaixa(comandaId);
+  } catch (e) {
+    alert('Erro ao processar pagamento: ' + e.message);
+  }
+}
+
+function calcularTotalSelecionadoCaixa() {
+  const itens = window._itensCaixa || [];
+  let totalSelecionado = 0;
+  itens.forEach((i, idx) => {
+    const ck = document.getElementById('ck-item-' + idx);
+    if (ck && ck.checked) {
+      totalSelecionado += i.subtotal;
+    }
+  });
+  return totalSelecionado;
+}
+
+function calcularPagamentoCaixa() {
+  const totalSelecionado = calcularTotalSelecionadoCaixa();
+  const elTotal = document.getElementById('caixa-total-selecionado');
+  const trocoEl = document.getElementById('caixa-troco');
+  const elValor = document.getElementById('caixa-valor-recebido');
+  if (!elTotal || !trocoEl) return; // elementos não existem quando todos itens já estão pagos
+
+  elTotal.textContent = `R$ ${totalSelecionado.toFixed(2)}`;
+
+  const valorRecebido = elValor ? parseFloat(elValor.value) || 0 : 0;
+  const troco = valorRecebido - totalSelecionado;
+  trocoEl.textContent = troco >= 0 ? `R$ ${troco.toFixed(2)}` : `- R$ ${Math.abs(troco).toFixed(2)}`;
+  trocoEl.style.color = troco >= 0 ? 'var(--green)' : 'var(--red)';
 }
 
 function calcularDivisaoConta() {
@@ -1022,7 +1489,9 @@ function calcularDivisaoConta() {
     return;
   }
   
-  const total = window._totalFecharAtual || 0;
+  // Usar o total selecionado no caixa, se disponível; senão usa o total completo
+  const totalSelecionado = window._itensCaixa ? calcularTotalSelecionadoCaixa() : null;
+  const total = totalSelecionado || window._totalFecharAtual || 0;
   const valorPorPessoa = total / pessoas;
   
   document.getElementById('calc-resultado-divisao').textContent = `R$ ${valorPorPessoa.toFixed(2)}`;
@@ -1228,30 +1697,290 @@ async function finalizarEntrega(comandaId) {
 }
 
 // ── Cardápio ──────────────────────────────────────────────────────────────────
+function renderizarCardapio() {
+  const searchQuery = document.getElementById('cardapio-search').value.toLowerCase().trim();
+  const catSel = categoriaCardapioSel;
+
+  // Categorias disponíveis (incluindo bordas)
+  const catsDisponiveis = ['todas', ...new Set(cardapio.map(p => p.categoria)), 'bordas'];
+
+  // Renderizar abas
+  const tabsContainer = document.getElementById('cardapio-tabs');
+  tabsContainer.innerHTML = catsDisponiveis.map(cat => {
+    const nomes = { 'todas': 'Todas', 'pizza': ' Pizzas', 'bebida': ' Bebidas', 'sobremesa': ' Sobremesas', 'bordas': ' Bordas' };
+    const label = nomes[cat] || cat;
+    return `<div class="cat-tab ${catSel === cat ? 'active' : ''}" onclick="selecionarCategoriaCardapio('${cat}')">${label}</div>`;
+  }).join('');
+
+  // Filtrar produtos
+  let produtosFiltrados = cardapio.filter(p => {
+    const matchCategoria = catSel === 'todas' || p.categoria === catSel;
+    const matchBusca = !searchQuery || 
+      p.nome.toLowerCase().includes(searchQuery) || 
+      (p.descricao && p.descricao.toLowerCase().includes(searchQuery)) ||
+      p.categoria.toLowerCase().includes(searchQuery);
+    return matchCategoria && matchBusca;
+  });
+
+  // Filtrar bordas
+  let bordasFiltradas = bordas.filter(b => {
+    const matchCategoria = catSel === 'todas' || catSel === 'bordas';
+    const matchBusca = !searchQuery || 
+      b.tipo.toLowerCase().includes(searchQuery);
+    return matchCategoria && matchBusca;
+  });
+
+  // Agrupar por categoria
+  const cats = {};
+  produtosFiltrados.forEach(p => {
+    if (!cats[p.categoria]) cats[p.categoria] = [];
+    cats[p.categoria].push(p);
+  });
+
+  let html = '';
+
+  // Se nenhum resultado
+  const totalItens = produtosFiltrados.length + bordasFiltradas.length;
+  if (totalItens === 0) {
+    html = '<div class="empty" style="padding:3rem 1rem"><div class="empty-icon">🔍</div>Nenhum item encontrado</div>';
+    document.getElementById('cardapio-list').innerHTML = html;
+    return;
+  }
+
+  // Renderizar grupos de produtos
+  Object.entries(cats).forEach(([cat, itens]) => {
+    const nomes = { 'pizza': ' Pizzas', 'bebida': ' Bebidas', 'sobremesa': ' Sobremesas' };
+    const label = nomes[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
+    html += `<div class="cat-label" style="margin-top:8px">${label}</div>`;
+    html += `<div class="card" style="padding:.5rem 1rem">
+      ${itens.map(p => `
+        <div class="prod-row">
+          <div style="flex:1;min-width:0">
+            <div class="prod-nome">${p.nome}</div>
+            ${p.descricao ? `<div class="prod-desc">${p.descricao}</div>` : ''}
+          </div>
+          <div class="prod-preco" style="margin-right:8px">R$ ${p.preco.toFixed(2)}</div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <button class="btn btn-sm" style="padding:4px 8px;font-size:11px" onclick="abrirModalEditarCardapio(${p.id},'${p.nome.replace(/'/g,"\\'")}','${p.categoria}','${p.descricao ? p.descricao.replace(/'/g,"\\'") : ''}',${p.preco})" title="Editar">✏️</button>
+            <button class="btn btn-sm btn-danger" style="padding:4px 8px;font-size:11px" onclick="removerItemCardapio(${p.id},'${p.nome.replace(/'/g,"\\'")}')" title="Remover">🗑️</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  });
+
+  // Renderizar bordas
+  if (bordasFiltradas.length > 0) {
+    html += `<div class="cat-label" style="margin-top:8px"> Bordas</div>`;
+    html += `<div class="card" style="padding:.5rem 1rem">
+      ${bordasFiltradas.map(b => `
+        <div class="prod-row">
+          <div class="prod-nome" style="flex:1">${b.tipo}</div>
+          <div class="prod-preco" style="margin-right:8px">${b.preco > 0 ? 'R$ ' + b.preco.toFixed(2) : 'grátis'}</div>
+          <button class="btn btn-sm btn-danger" style="padding:4px 8px;font-size:11px;flex-shrink:0" onclick="removerBorda(${b.id},'${b.tipo.replace(/'/g,"\\'")}')" title="Remover">🗑️</button>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('cardapio-list').innerHTML = html;
+}
+
 async function loadCardapio() {
   if (!cardapio.length) cardapio = await api('/api/cardapio');
   if (!bordas.length) bordas = await api('/api/bordas');
-  const cats = {};
-  cardapio.forEach(p => (cats[p.categoria] = cats[p.categoria]||[]).push(p));
+  renderizarCardapio();
+}
 
-  let html = Object.entries(cats).map(([cat, itens]) => `
-    <div class="cat-label">${cat}</div>
-    <div class="card" style="padding:.5rem 1rem">
-      ${itens.map(p=>`<div class="prod-row">
-        <div><div class="prod-nome">${p.nome}</div>${p.descricao?`<div class="prod-desc">${p.descricao}</div>`:''}</div>
-        <div class="prod-preco">R$ ${p.preco.toFixed(2)}</div>
-      </div>`).join('')}
-    </div>`).join('');
+function selecionarCategoriaCardapio(cat) {
+  categoriaCardapioSel = cat;
+  renderizarCardapio();
+}
 
-  html += `<div class="cat-label">Bordas</div>
-    <div class="card" style="padding:.5rem 1rem">
-      ${bordas.map(b=>`<div class="prod-row">
-        <div class="prod-nome">${b.tipo}</div>
-        <div class="prod-preco">${b.preco>0?'R$ '+b.preco.toFixed(2):'grátis'}</div>
-      </div>`).join('')}
-    </div>`;
+function filtrarCardapio() {
+  renderizarCardapio();
+}
 
-  document.getElementById('cardapio-list').innerHTML = html;
+// ── Helper: popular selects de categorias ────────────────────────────────────
+function popularCategorias(selectId) {
+  const cats = [...new Set(cardapio.map(p => p.categoria))].sort();
+  const nomes = { 'pizza': ' Pizza', 'bebida': ' Bebida', 'sobremesa': ' Sobremesa' };
+  const select = document.getElementById(selectId);
+  select.innerHTML = cats.map(c =>
+    `<option value="${c}">${nomes[c] || c.charAt(0).toUpperCase() + c.slice(1)}</option>`
+  ).join('') + `<option value="__nova__">➕ Nova categoria...</option>`;
+}
+
+function onCategoriaChange(selectId, inputId) {
+  const select = document.getElementById(selectId);
+  const input = document.getElementById(inputId);
+  if (select.value === '__nova__') {
+    input.style.display = 'block';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = '';
+  }
+}
+
+function getCategoriaValue(selectId, inputId) {
+  const select = document.getElementById(selectId);
+  const input = document.getElementById(inputId);
+  if (select.value === '__nova__') {
+    return input.value.trim().toLowerCase() || '';
+  }
+  return select.value;
+}
+
+function setCategoriaValue(selectId, inputId, valor) {
+  const select = document.getElementById(selectId);
+  const input = document.getElementById(inputId);
+  // Verifica se o valor existe no select
+  const exists = [...select.options].some(o => o.value === valor);
+  if (exists) {
+    select.value = valor;
+    input.style.display = 'none';
+    input.value = '';
+  } else {
+    // Categoria não existe no select, mostra o campo personalizado
+    select.value = '__nova__';
+    input.style.display = 'block';
+    input.value = valor;
+  }
+}
+
+// ── Editar / Remover item do cardápio ────────────────────────────────────────
+let _editandoCardapioId = null;
+
+function abrirModalEditarCardapio(id, nome, categoria, descricao, preco) {
+  _editandoCardapioId = id;
+  document.getElementById('eci-nome').value = nome;
+  popularCategorias('eci-categoria');
+  setCategoriaValue('eci-categoria', 'eci-nova-categoria', categoria);
+  document.getElementById('eci-preco').value = preco;
+  document.getElementById('eci-descricao').value = descricao;
+  document.getElementById('editar-cardapio-overlay').classList.add('open');
+}
+
+function fecharModalEditarCardapio() {
+  document.getElementById('editar-cardapio-overlay').classList.remove('open');
+  _editandoCardapioId = null;
+}
+
+async function salvarEdicaoCardapio() {
+  const id = _editandoCardapioId;
+  const nome = document.getElementById('eci-nome').value.trim();
+  const categoria = getCategoriaValue('eci-categoria', 'eci-nova-categoria');
+  const preco = parseFloat(document.getElementById('eci-preco').value);
+  const descricao = document.getElementById('eci-descricao').value.trim();
+
+  if (!nome) { alert('Informe o nome do item'); return; }
+  if (!preco || preco <= 0) { alert('Informe um preço válido'); return; }
+  if (!categoria) { alert('Informe ou selecione uma categoria'); return; }
+
+  try {
+    await api(`/api/cardapio/${id}`, 'PUT', { nome, categoria, preco, descricao });
+    cardapio = [];
+    await loadCardapio();
+    fecharModalEditarCardapio();
+    alert(`Item "${nome}" atualizado!`);
+  } catch (e) {
+    alert('Erro ao editar item: ' + e.message);
+  }
+}
+
+async function removerItemCardapio(id, nome) {
+  if (!confirm(`Remover "${nome}" do cardápio?`)) return;
+  try {
+    await api(`/api/cardapio/${id}`, 'DELETE');
+    cardapio = [];
+    await loadCardapio();
+    alert(`Item "${nome}" removido do cardápio!`);
+  } catch (e) {
+    alert('Erro ao remover item: ' + e.message);
+  }
+}
+
+// ── Gerenciar Bordas ─────────────────────────────────────────────────────────
+function toggleFormBorda() {
+  const form = document.getElementById('form-nova-borda');
+  const btn = document.getElementById('btn-toggle-borda-form');
+  const aberto = form.style.display !== 'none';
+  form.style.display = aberto ? 'none' : 'block';
+  btn.textContent = aberto ? '+ Nova borda' : 'Cancelar';
+  if (!aberto) {
+    document.getElementById('cb-tipo').value = '';
+    document.getElementById('cb-preco').value = '';
+    document.getElementById('cb-tipo').focus();
+  }
+}
+
+async function adicionarBorda() {
+  const tipo = document.getElementById('cb-tipo').value.trim();
+  const preco = parseFloat(document.getElementById('cb-preco').value) || 0;
+
+  if (!tipo) { alert('Informe o tipo da borda'); return; }
+  if (preco < 0) { alert('Preço não pode ser negativo'); return; }
+
+  try {
+    await api('/api/bordas', 'POST', { tipo, preco });
+    bordas = [];
+    await loadCardapio();
+    toggleFormBorda();
+    alert(`Borda "${tipo}" adicionada!`);
+  } catch (e) {
+    alert('Erro ao adicionar borda: ' + e.message);
+  }
+}
+
+async function removerBorda(id, tipo) {
+  if (!confirm(`Remover a borda "${tipo}"?`)) return;
+  try {
+    await api(`/api/bordas/${id}`, 'DELETE');
+    bordas = [];
+    await loadCardapio();
+    alert(`Borda "${tipo}" removida!`);
+  } catch (e) {
+    alert('Erro ao remover borda: ' + e.message);
+  }
+}
+
+// ── Cadastrar item no cardápio ───────────────────────────────────────────────
+function toggleFormCardapio() {
+  const form = document.getElementById('form-novo-item-cardapio');
+  const btn = document.getElementById('btn-toggle-cardapio-form');
+  const aberto = form.style.display !== 'none';
+  form.style.display = aberto ? 'none' : 'block';
+  btn.textContent = aberto ? '+ Adicionar' : 'Cancelar';
+  if (!aberto) {
+    document.getElementById('ci-nome').value = '';
+    popularCategorias('ci-categoria');
+    document.getElementById('ci-categoria').value = cardapio.length ? [...new Set(cardapio.map(p => p.categoria))].sort()[0] : 'pizza';
+    document.getElementById('ci-nova-categoria').style.display = 'none';
+    document.getElementById('ci-nova-categoria').value = '';
+    document.getElementById('ci-preco').value = '';
+    document.getElementById('ci-descricao').value = '';
+    document.getElementById('ci-nome').focus();
+  }
+}
+
+async function adicionarItemCardapio() {
+  const nome = document.getElementById('ci-nome').value.trim();
+  const categoria = getCategoriaValue('ci-categoria', 'ci-nova-categoria');
+  const preco = parseFloat(document.getElementById('ci-preco').value);
+  const descricao = document.getElementById('ci-descricao').value.trim();
+
+  if (!nome) { alert('Informe o nome do item'); return; }
+  if (!preco || preco <= 0) { alert('Informe um preço válido'); return; }
+  if (!categoria) { alert('Informe ou selecione uma categoria'); return; }
+
+  try {
+    await api('/api/cardapio', 'POST', { nome, categoria, preco, descricao });
+    cardapio = []; // Força recarregar
+    await loadCardapio();
+    toggleFormCardapio();
+    alert(`Item "${nome}" adicionado ao cardápio!`);
+  } catch (e) {
+    alert('Erro ao adicionar item: ' + e.message);
+  }
 }
 
 // ── Sincronização e Atualização Automática Sem Troca de Abas ───────────────────

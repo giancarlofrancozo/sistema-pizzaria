@@ -136,14 +136,13 @@ class Comanda(Base):
     garcom_id = Column(Integer, ForeignKey("garcons.id"), nullable=True)
     garcom = relationship("Garcom")
     mesa = relationship("Mesa", back_populates="comandas")
-    itens = relationship("ItemPedido", back_populates="comanda")  # ← sem espaço
+    itens = relationship("ItemPedido", back_populates="comanda")  
 
     @property
     def total(self):
         return sum(i.subtotal for i in self.itens)
 
     def __repr__(self):
-        # Trata comanda de delivery de forma segura caso mesa seja None
         local = f"Mesa {self.mesa.numero}" if self.mesa else "Delivery/Balcão"
         return f"Comanda #{self.id} | {local} | R$ {self.total:.2f}"
 
@@ -156,18 +155,19 @@ class ItemPedido(Base):
     produto_id = Column(Integer, ForeignKey("cardapio.id"), nullable=False)
     quantidade = Column(Integer, default=1)
     observacao = Column(String, default="")
-    tamanho = Column(String, default="normal")  # normal, grande
+    tamanho = Column(String, default="normal") 
     preco_unitario = Column(Float, nullable=False)
     status = Column(String, default=StatusItem.PENDENTE)
     criado_em = Column(DateTime, default=datetime.now)
     meio_a_meio = Column(Integer, default=0)
     produto2_id = Column(Integer, ForeignKey("cardapio.id"), nullable=True)
     borda_id = Column(Integer, ForeignKey("bordas.id"), nullable=True)
+    pago = Column(Integer, default=0)
 
     comanda = relationship("Comanda", back_populates="itens")
     produto = relationship("Cardapio", foreign_keys=[produto_id], back_populates="itens")
     produto2 = relationship("Cardapio", foreign_keys=[produto2_id])
-    borda = relationship("Borda", foreign_keys=[borda_id])  # ← maiúsculo
+    borda = relationship("Borda", foreign_keys=[borda_id])  
 
     @property
     def subtotal(self):
@@ -181,6 +181,24 @@ class ItemPedido(Base):
 
 def criar_banco():
     Base.metadata.create_all(engine)
+    _migrar_banco()
+
+
+def _migrar_banco():
+    """Adiciona colunas faltantes em migrações (SQLite não altera tabelas automaticamente)."""
+    from sqlalchemy import text
+    session = Session()
+    migracoes = [
+        "ALTER TABLE itens_pedido ADD COLUMN pago INTEGER DEFAULT 0",
+    ]
+    for sql in migracoes:
+        try:
+            session.execute(text(sql))
+            session.commit()
+            print(f"Migração executada: {sql[:60]}...")
+        except Exception:
+            session.rollback()  # coluna já existe, ignorar
+    session.close()
 
 
 def popular_banco():

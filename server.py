@@ -19,8 +19,11 @@ from models.database import ConfigImpressora, ConfigCategoria
 from models.database import criar_banco, popular_banco, Session, Mesa, Cardapio, Comanda, ItemPedido, Borda, StatusMesa, StatusComanda, StatusItem, Garcom, Entrega
 from services.pizzaria_service import (
     listar_mesas, abrir_comanda, get_comanda_aberta, get_comanda,
-    fechar_comanda, listar_cardapio, listar_bordas,
-    adicionar_item, remover_item, atualizar_status_item, listar_itens_pendentes, listar_garcons, cadastrar_garcom, remover_garcom,abrir_comanda_entregas, criar_entrega, listar_entregas_ativas, atualizar_status_entrega
+    fechar_comanda, reabrir_comanda, listar_cardapio, listar_bordas, listar_comandas_fechadas,
+    adicionar_item, remover_item, atualizar_status_item, listar_itens_pendentes, listar_garcons, cadastrar_garcom, remover_garcom,abrir_comanda_entregas, criar_entrega, listar_entregas_ativas, atualizar_status_entrega,
+    adicionar_item_cardapio, editar_item_cardapio, remover_item_cardapio,
+    adicionar_borda, remover_borda,
+    marcar_itens_pagos
 )
 
 app = FastAPI(title="Pizzaria API")
@@ -89,17 +92,108 @@ def api_mesas():
 
 # ── Cardápio ──────────────────────────────────────────────────────────────────
 
+class CardapioItemBody(BaseModel):
+    nome: str
+    categoria: str
+    preco: float
+    descricao: str = ""
+
 @app.get("/api/cardapio")
 def api_cardapio():
     itens = listar_cardapio()
     return [{"id": p.id, "nome": p.nome, "categoria": p.categoria, "descricao": p.descricao, "preco": p.preco} for p in itens]
+
+@app.post("/api/cardapio")
+def api_adicionar_cardapio(body: CardapioItemBody):
+    if not body.nome.strip():
+        raise HTTPException(400, "Nome do item é obrigatório")
+    if body.preco <= 0:
+        raise HTTPException(400, "Preço deve ser maior que zero")
+    if not body.categoria.strip():
+        raise HTTPException(400, "Categoria é obrigatória")
+    resultado = adicionar_item_cardapio(body.nome, body.categoria, body.preco, body.descricao)
+    if isinstance(resultado, str):
+        raise HTTPException(400, resultado)
+    return {"ok": True, "id": resultado.id}
+
+@app.put("/api/cardapio/{item_id}")
+def api_editar_cardapio(item_id: int, body: CardapioItemBody):
+    if not body.nome.strip():
+        raise HTTPException(400, "Nome do item é obrigatório")
+    if body.preco <= 0:
+        raise HTTPException(400, "Preço deve ser maior que zero")
+    if not body.categoria.strip():
+        raise HTTPException(400, "Categoria é obrigatória")
+    resultado = editar_item_cardapio(item_id, body.nome, body.categoria, body.preco, body.descricao)
+    if isinstance(resultado, str):
+        raise HTTPException(400, resultado)
+    return {"ok": True, "id": item_id}
+
+@app.delete("/api/cardapio/{item_id}")
+def api_remover_cardapio(item_id: int):
+    if not remover_item_cardapio(item_id):
+        raise HTTPException(404, "Item não encontrado")
+    return {"ok": True}
+
+class BordaBody(BaseModel):
+    tipo: str
+    preco: float
 
 @app.get("/api/bordas")
 def api_bordas():
     bordas = listar_bordas()
     return [{"id": b.id, "tipo": b.tipo, "preco": b.preco} for b in bordas]
 
+@app.post("/api/bordas")
+def api_adicionar_borda(body: BordaBody):
+    if not body.tipo.strip():
+        raise HTTPException(400, "Tipo da borda é obrigatório")
+    if body.preco < 0:
+        raise HTTPException(400, "Preço não pode ser negativo")
+    resultado = adicionar_borda(body.tipo, body.preco)
+    if isinstance(resultado, str):
+        raise HTTPException(400, resultado)
+    return {"ok": True, "id": resultado.id}
+
+@app.delete("/api/bordas/{borda_id}")
+def api_remover_borda(borda_id: int):
+    if not remover_borda(borda_id):
+        raise HTTPException(404, "Borda não encontrada")
+    return {"ok": True}
+
 # ── Comandas ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/comandas/fechadas")
+def api_comandas_fechadas(data_inicio: str = None, data_fim: str = None):
+    import traceback
+    from datetime import datetime
+    try:
+        dt_inicio = datetime.strptime(data_inicio, "%Y-%m-%d") if data_inicio else None
+    except:
+        dt_inicio = None
+    try:
+        dt_fim = datetime.strptime(data_fim, "%Y-%m-%d") if data_fim else None
+    except:
+        dt_fim = None
+    try:
+        comandas = listar_comandas_fechadas(dt_inicio, dt_fim)
+        resultado = []
+        for c in comandas:
+            resultado.append({
+                "id": c.id,
+                "mesa_numero": c.mesa.numero if c.mesa_id and c.mesa else "Delivery",
+                "abertura": c.abertura.strftime("%d/%m %H:%M"),
+                "fechamento": c.fechamento.strftime("%d/%m %H:%M") if c.fechamento else "—",
+                "total": c.total,
+                "garcom": c.garcom.usuario if c.garcom_id and c.garcom else "—",
+                "qtd_itens": len(c.itens),
+                "itens": [serializar_item(i) for i in c.itens]
+            })
+        return resultado
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(500, f"Erro ao listar comandas fechadas: {e}")
+
 
 @app.get("/api/comandas/abertas")
 def api_comandas_abertas():
@@ -129,7 +223,8 @@ def serializar_item(i):
         "observacao": i.observacao,
         "status": i.status,
         "subtotal": i.subtotal,
-        "meio_a_meio": bool(i.meio_a_meio)
+        "meio_a_meio": bool(i.meio_a_meio),
+        "pago": bool(i.pago)
     }
 
 def listar_comandas_abertas_serializada():
@@ -168,6 +263,14 @@ def api_comanda_mesa(numero: int):
     session.close()
     return resultado
 
+@app.post("/api/comanda/{comanda_id}/reabrir")
+def api_reabrir(comanda_id: int):
+    resultado = reabrir_comanda(comanda_id)
+    if isinstance(resultado, str):
+        raise HTTPException(400, resultado)
+    return {"ok": True, "comanda_id": comanda_id}
+
+
 @app.post("/api/comanda/{comanda_id}/fechar")
 def api_fechar(comanda_id: int):
     resultado = fechar_comanda(comanda_id)
@@ -176,6 +279,9 @@ def api_fechar(comanda_id: int):
     return {"ok": True}
 
 # ── Itens ─────────────────────────────────────────────────────────────────────
+
+class PagarItensBody(BaseModel):
+    item_ids: list[int]
 
 class ItemBody(BaseModel):
     produto_id: int
@@ -196,6 +302,15 @@ def api_add_item(comanda_id: int, body: ItemBody):
     except Exception as e:
         print(f"Erro de impressao (nao critico): {e}")
     return {"ok": True}
+
+@app.post("/api/comanda/{comanda_id}/itens/pagar")
+def api_pagar_itens(comanda_id: int, body: PagarItensBody):
+    if not body.item_ids:
+        raise HTTPException(400, "Nenhum item selecionado para pagamento")
+    if not marcar_itens_pagos(comanda_id, body.item_ids):
+        raise HTTPException(400, "Erro ao processar pagamento dos itens")
+    return {"ok": True}
+
 
 @app.delete("/api/item/{item_id}")
 def api_remove_item(item_id: int):

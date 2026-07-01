@@ -155,7 +155,7 @@ def listar_cardapio(categoria: str = None):
 
 def listar_bordas():
     session = Session()
-    bordas = session.query(Borda).order_by(Borda.tipo).all()
+    bordas = session.query(Borda).filter_by(disponivel=1).order_by(Borda.tipo).all()
     session.close()
     return bordas
 
@@ -228,24 +228,83 @@ def get_comanda_aberta(numero_mesa: int):
     return comanda
 
 
+def listar_comandas_fechadas(data_inicio=None, data_fim=None):
+    """Retorna comandas fechadas com filtro opcional por data."""
+    session = Session()
+    q = session.query(Comanda).filter_by(status=StatusComanda.FECHADA)
+    
+    if data_inicio:
+        q = q.filter(Comanda.fechamento >= data_inicio)
+    if data_fim:
+        from datetime import timedelta
+        data_fim_ajustada = data_fim + timedelta(days=1)  # inclui o dia inteiro
+        q = q.filter(Comanda.fechamento < data_fim_ajustada)
+    
+    comandas = q.order_by(Comanda.fechamento.desc()).limit(50).all()
+    for c in comandas:
+        if c.mesa:
+            _ = c.mesa.numero
+        _ = c.garcom.usuario if c.garcom_id and c.garcom else None
+        for i in c.itens:
+            _ = i.produto.nome
+            _ = i.produto2.nome if i.produto2_id else None
+            _ = i.borda  # carrega o relacionamento borda (pode ser None)
+            if i.borda:
+                _ = i.borda.tipo
+                _ = i.borda.preco  # pré-carrega também o preço para o subtotal
+    session.close()
+    return comandas
+
+
 def listar_comandas_abertas():
     session = Session()
     comandas = session.query(Comanda).filter_by(status=StatusComanda.ABERTA).all()
     for c in comandas:
         _ = c.mesa.numero
         _ = c.mesa.status
-        _ = [
-            (i.id, i.quantidade, i.observacao, i.status, i.criado_em,
-             i.produto.nome, i.produto.preco,
-             i.produto2.nome if i.produto2_id else None,
-             i.produto2.preco if i.produto2_id else None,
-             i.borda.tipo if i.borda_id else None,
-             i.borda.preco if i.borda_id else None,
-             i.meio_a_meio, i.subtotal)
-            for i in c.itens
-        ]
+        for i in c.itens:
+            _ = i.produto.nome
+            _ = i.produto.preco
+            _ = i.produto2.nome if i.produto2_id else None
+            _ = i.produto2.preco if i.produto2_id else None
+            _ = i.borda  # carrega o relacionamento borda (pode ser None)
+            if i.borda:
+                _ = i.borda.tipo
+                _ = i.borda.preco
+            _ = i.meio_a_meio
+            _ = i.subtotal
     session.close()
     return comandas
+
+def reabrir_comanda(comanda_id: int):
+    """Reabre uma comanda fechada do dia atual e reocupa a mesa."""
+    session = Session()
+    try:
+        comanda = session.query(Comanda).filter_by(id=comanda_id, status=StatusComanda.FECHADA).first()
+        if not comanda:
+            session.close()
+            return "Comanda não encontrada ou já está aberta."
+        
+        # Só permite reabrir comandas do dia atual
+        if comanda.fechamento and comanda.fechamento.date() != datetime.now().date():
+            session.close()
+            return "Só é possível reabrir comandas fechadas hoje."
+        
+        comanda.status = StatusComanda.ABERTA
+        comanda.fechamento = None
+        
+        if comanda.mesa_id and comanda.mesa:
+            comanda.mesa.status = StatusMesa.OCUPADA
+        
+        session.commit()
+        session.close()
+        return comanda
+    except Exception as e:
+        session.rollback()
+        session.close()
+        print(f"Erro ao reabrir comanda: {e}")
+        return f"Erro interno: {e}"
+
 
 def fechar_comanda(comanda_id: int):
     """Fecha a comanda financeira e libera a mesa física (se houver uma)."""
@@ -368,6 +427,33 @@ def listar_itens_pendentes():
     return itens
 
 
+def marcar_itens_pagos(comanda_id: int, item_ids: list[int]) -> bool:
+    """Marca itens específicos de uma comanda como pagos."""
+    session = Session()
+    try:
+        comanda = session.query(Comanda).filter_by(id=comanda_id).first()
+        if not comanda:
+            session.close()
+            return False
+        
+        itens = session.query(ItemPedido).filter(
+            ItemPedido.id.in_(item_ids),
+            ItemPedido.comanda_id == comanda_id
+        ).all()
+        
+        for item in itens:
+            item.pago = 1
+        
+        session.commit()
+        session.close()
+        return True
+    except Exception as e:
+        session.rollback()
+        session.close()
+        print(f"Erro ao marcar itens como pagos: {e}")
+        return False
+
+
 def remover_item(item_id: int) -> bool:
     session = Session()
     item = session.query(ItemPedido).filter_by(id=item_id).first()
@@ -386,3 +472,109 @@ def subtotal(self):
     else:
         preco = self.produto.preco
     return self.quantidade * preco
+
+
+def adicionar_item_cardapio(nome: str, categoria: str, preco: float, descricao: str = ""):
+    """Adiciona um novo item ao cardápio."""
+    session = Session()
+    try:
+        item = Cardapio(
+            nome=nome.strip(),
+            categoria=categoria.strip().lower(),
+            preco=preco,
+            descricao=descricao.strip(),
+            disponivel=1
+        )
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+        item_id = item.id
+        session.close()
+        
+        session2 = Session()
+        novo_item = session2.query(Cardapio).filter_by(id=item_id).first()
+        session2.close()
+        return novo_item
+    except Exception as e:
+        session.rollback()
+        session.close()
+        return f"Erro ao adicionar item: {e}"
+
+
+def editar_item_cardapio(item_id: int, nome: str, categoria: str, preco: float, descricao: str = ""):
+    """Edita um item existente do cardápio."""
+    session = Session()
+    try:
+        item = session.query(Cardapio).filter_by(id=item_id, disponivel=1).first()
+        if not item:
+            session.close()
+            return "Item não encontrado."
+        item.nome = nome.strip()
+        item.categoria = categoria.strip().lower()
+        item.preco = preco
+        item.descricao = descricao.strip()
+        session.commit()
+        session.close()
+        return item
+    except Exception as e:
+        session.rollback()
+        session.close()
+        return f"Erro ao editar item: {e}"
+
+
+def remover_item_cardapio(item_id: int) -> bool:
+    """Remove (desativa) um item do cardápio."""
+    session = Session()
+    try:
+        item = session.query(Cardapio).filter_by(id=item_id, disponivel=1).first()
+        if not item:
+            session.close()
+            return False
+        item.disponivel = 0
+        session.commit()
+        session.close()
+        return True
+    except Exception as e:
+        session.rollback()
+        session.close()
+        print(f"Erro ao remover item: {e}")
+        return False
+
+
+def adicionar_borda(tipo: str, preco: float):
+    """Adiciona uma nova borda."""
+    session = Session()
+    try:
+        borda = Borda(tipo=tipo.strip(), preco=preco, disponivel=1)
+        session.add(borda)
+        session.commit()
+        session.refresh(borda)
+        borda_id = borda.id
+        session.close()
+        session2 = Session()
+        nova = session2.query(Borda).filter_by(id=borda_id).first()
+        session2.close()
+        return nova
+    except Exception as e:
+        session.rollback()
+        session.close()
+        return f"Erro ao adicionar borda: {e}"
+
+
+def remover_borda(borda_id: int) -> bool:
+    """Remove (desativa) uma borda."""
+    session = Session()
+    try:
+        borda = session.query(Borda).filter_by(id=borda_id, disponivel=1).first()
+        if not borda:
+            session.close()
+            return False
+        borda.disponivel = 0
+        session.commit()
+        session.close()
+        return True
+    except Exception as e:
+        session.rollback()
+        session.close()
+        print(f"Erro ao remover borda: {e}")
+        return False
