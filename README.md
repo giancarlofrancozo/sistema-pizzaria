@@ -1,4 +1,4 @@
-# 🍕 Sistema de Gerenciamento para Pizzaria
+#  Sistema de Gerenciamento para Pizzaria
 
 Sistema completo de gerenciamento de comandas para restaurantes e pizzarias, desenvolvido em Python com interface web responsiva acessível por celular via Wi-Fi.
 
